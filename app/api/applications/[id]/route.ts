@@ -1,41 +1,134 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-function getBackendBaseUrl() {
-  const v = process.env.BACKEND_URL || "http://localhost:3000";
-  return v.replace(/\/$/, "");
-}
+const base = process.env.API_BASE;
+const key = process.env.API_KEY;
 
-export async function DELETE(_: Request, ctx: { params: { id: string } }) {
-  const API_KEY = process.env.API_KEY;
-  if (!API_KEY) {
+function mustEnv() {
+  if (!base || !key) {
     return NextResponse.json(
-      { error: { code: "SERVER_MISCONFIG", message: "API_KEY not set" } },
+      {
+        error: {
+          code: "SERVER_MISCONFIG",
+          message: "API_BASE/API_KEY not set",
+        },
+      },
       { status: 500 },
     );
   }
+  return null;
+}
 
-  const id = Number(ctx.params.id);
-  if (!Number.isFinite(id)) {
+function normalizePhone(v: unknown): string {
+  return String(v ?? "").replace(/\D/g, "");
+}
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+type AppRow = { id: number; phone: string };
+
+// ✅ 빌드가 요구하는 시그니처에 정확히 맞춤
+export async function DELETE(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const mis = mustEnv();
+  if (mis) return mis;
+
+  const apiBase = base as string;
+  const apiKey = key as string;
+
+  const { id } = await ctx.params;
+
+  if (!/^\d+$/.test(id)) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "invalid id" } },
+      { error: { code: "BAD_REQUEST", message: "invalid id" } },
       { status: 400 },
     );
   }
 
-  const backend = getBackendBaseUrl();
-  const r = await fetch(`${backend}/api/applications/${id}`, {
-    method: "DELETE",
-    headers: { "x-api-key": API_KEY },
+  // body에서 phone 받기
+  let parsed: unknown;
+  try {
+    parsed = await req.json();
+  } catch {
+    return NextResponse.json(
+      { error: { code: "BAD_REQUEST", message: "invalid JSON" } },
+      { status: 400 },
+    );
+  }
+
+  if (!isObject(parsed)) {
+    return NextResponse.json(
+      { error: { code: "BAD_REQUEST", message: "JSON object required" } },
+      { status: 400 },
+    );
+  }
+
+  const phone = normalizePhone(parsed.phone);
+  if (!phone) {
+    return NextResponse.json(
+      { error: { code: "BAD_REQUEST", message: "phone required" } },
+      { status: 400 },
+    );
+  }
+
+  // 1) 해당 id 레코드 조회
+  const r1 = await fetch(`${apiBase}/api/applications/${id}`, {
+    headers: { "x-api-key": apiKey },
+    cache: "no-store",
   });
 
-  // 204는 body 없음
-  if (r.status === 204) return new NextResponse(null, { status: 204 });
+  const t1 = await r1.text();
+  if (!r1.ok) {
+    return new NextResponse(t1, {
+      status: r1.status,
+      headers: {
+        "content-type": r1.headers.get("content-type") ?? "text/plain",
+      },
+    });
+  }
 
-  const text = await r.text();
-  return new NextResponse(text, {
-    status: r.status,
-    headers: {
-      "content-type": r.headers.get("content-type") ?? "application/json",
-    },
+  let row: AppRow;
+  try {
+    row = JSON.parse(t1) as AppRow;
+  } catch {
+    return NextResponse.json(
+      {
+        error: {
+          code: "BAD_BACKEND_RESPONSE",
+          message: "backend did not return valid JSON",
+          backendText: t1.slice(0, 300),
+        },
+      },
+      { status: 502 },
+    );
+  }
+
+  // 2) 소유권 검증
+  if (normalizePhone(row.phone) !== phone) {
+    return NextResponse.json(
+      { error: { code: "FORBIDDEN", message: "not your application" } },
+      { status: 403 },
+    );
+  }
+
+  // 3) 삭제 실행
+  const r2 = await fetch(`${apiBase}/api/applications/${id}`, {
+    method: "DELETE",
+    headers: { "x-api-key": apiKey },
+    cache: "no-store",
+  });
+
+  // 204/205는 body 금지
+  if (r2.status === 204 || r2.status === 205) {
+    return new NextResponse(null, { status: r2.status });
+  }
+
+  const t2 = await r2.text();
+  return new NextResponse(t2, {
+    status: r2.status,
+    headers: { "content-type": r2.headers.get("content-type") ?? "text/plain" },
   });
 }

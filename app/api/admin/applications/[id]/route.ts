@@ -18,18 +18,43 @@ function mustEnv() {
   return null;
 }
 
-function normalizePhone(v: unknown): string {
-  return String(v ?? "").replace(/\D/g, "");
+// 🔹 관리자 단건 조회
+export async function GET(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const mis = mustEnv();
+  if (mis) return mis;
+
+  const apiBase = base as string;
+  const apiKey = key as string;
+
+  const { id } = await ctx.params;
+
+  if (!/^\d+$/.test(id)) {
+    return NextResponse.json(
+      { error: { code: "BAD_REQUEST", message: "invalid id" } },
+      { status: 400 },
+    );
+  }
+
+  const res = await fetch(`${apiBase}/api/applications/${id}`, {
+    headers: { "x-api-key": apiKey },
+    cache: "no-store",
+  });
+
+  const text = await res.text();
+
+  return new NextResponse(text, {
+    status: res.status,
+    headers: {
+      "content-type": res.headers.get("content-type") ?? "application/json",
+    },
+  });
 }
 
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-type AppRow = { id: number; phone: string };
-
-// ✅ Vercel 빌드가 기대하는 시그니처로 맞춤
-export async function DELETE(
+// 🔹 관리자 수정 (PATCH)
+export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
@@ -39,7 +64,8 @@ export async function DELETE(
   const apiBase = base as string;
   const apiKey = key as string;
 
-  const { id } = await ctx.params; // ✅ Promise 형태로 맞춤
+  const { id } = await ctx.params;
+
   if (!/^\d+$/.test(id)) {
     return NextResponse.json(
       { error: { code: "BAD_REQUEST", message: "invalid id" } },
@@ -47,87 +73,64 @@ export async function DELETE(
     );
   }
 
-  // body에서 phone 받기
-  let parsed: unknown;
-  try {
-    parsed = await req.json();
-  } catch {
-    return NextResponse.json(
-      { error: { code: "BAD_REQUEST", message: "invalid JSON" } },
-      { status: 400 },
-    );
-  }
+  const body = await req.text();
 
-  if (!isObject(parsed)) {
-    return NextResponse.json(
-      { error: { code: "BAD_REQUEST", message: "JSON object required" } },
-      { status: 400 },
-    );
-  }
-
-  const phone = normalizePhone(parsed.phone);
-  if (!phone) {
-    return NextResponse.json(
-      { error: { code: "BAD_REQUEST", message: "phone required" } },
-      { status: 400 },
-    );
-  }
-
-  // 1) 해당 id 레코드 조회
-  const r1 = await fetch(`${apiBase}/api/applications/${id}`, {
-    headers: { "x-api-key": apiKey },
+  const res = await fetch(`${apiBase}/api/applications/${id}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+    },
+    body,
     cache: "no-store",
   });
 
-  const t1 = await r1.text();
-  if (!r1.ok) {
-    return new NextResponse(t1, {
-      status: r1.status,
-      headers: {
-        "content-type": r1.headers.get("content-type") ?? "text/plain",
-      },
-    });
-  }
+  const text = await res.text();
 
-  let row: AppRow;
-  try {
-    row = JSON.parse(t1) as AppRow;
-  } catch {
+  return new NextResponse(text, {
+    status: res.status,
+    headers: {
+      "content-type": res.headers.get("content-type") ?? "application/json",
+    },
+  });
+}
+
+// 🔹 관리자 삭제
+export async function DELETE(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const mis = mustEnv();
+  if (mis) return mis;
+
+  const apiBase = base as string;
+  const apiKey = key as string;
+
+  const { id } = await ctx.params;
+
+  if (!/^\d+$/.test(id)) {
     return NextResponse.json(
-      {
-        error: {
-          code: "BAD_BACKEND_RESPONSE",
-          message: "backend did not return valid JSON",
-          backendText: t1.slice(0, 300),
-        },
-      },
-      { status: 502 },
+      { error: { code: "BAD_REQUEST", message: "invalid id" } },
+      { status: 400 },
     );
   }
 
-  // 2) 소유권 검증
-  if (normalizePhone(row.phone) !== phone) {
-    return NextResponse.json(
-      { error: { code: "FORBIDDEN", message: "not your application" } },
-      { status: 403 },
-    );
-  }
-
-  // 3) 삭제 실행
-  const r2 = await fetch(`${apiBase}/api/applications/${id}`, {
+  const res = await fetch(`${apiBase}/api/applications/${id}`, {
     method: "DELETE",
     headers: { "x-api-key": apiKey },
     cache: "no-store",
   });
 
-  // 204/205는 body 금지
-  if (r2.status === 204 || r2.status === 205) {
-    return new NextResponse(null, { status: r2.status });
+  if (res.status === 204 || res.status === 205) {
+    return new NextResponse(null, { status: res.status });
   }
 
-  const t2 = await r2.text();
-  return new NextResponse(t2, {
-    status: r2.status,
-    headers: { "content-type": r2.headers.get("content-type") ?? "text/plain" },
+  const text = await res.text();
+
+  return new NextResponse(text, {
+    status: res.status,
+    headers: {
+      "content-type": res.headers.get("content-type") ?? "application/json",
+    },
   });
 }
