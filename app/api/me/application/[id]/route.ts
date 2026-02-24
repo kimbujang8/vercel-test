@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const base = process.env.API_BASE;
 const key = process.env.API_KEY;
@@ -31,19 +31,18 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-// ✅ Next 16 Route Handler 타입에 맞게 params는 Promise가 아니라 객체로 받습니다.
 export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } },
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const mis = mustEnv();
   if (mis) return mis;
 
-  // ✅ mustEnv 통과 후 string으로 고정 (TS/빌드 안전)
   const apiBase = base as string;
   const apiKey = key as string;
 
-  const { id } = params;
+  const { id } = await ctx.params;
+
   if (!/^\d+$/.test(id)) {
     return NextResponse.json(
       { error: { code: "BAD_REQUEST", message: "invalid id" } },
@@ -124,7 +123,7 @@ export async function DELETE(
     cache: "no-store",
   });
 
-  // ✅ 204/205는 body 금지
+  // 204/205는 body 금지
   if (r2.status === 204 || r2.status === 205) {
     return new NextResponse(null, { status: r2.status });
   }
@@ -132,6 +131,8 @@ export async function DELETE(
   const t2 = await r2.text();
   return new NextResponse(t2, {
     status: r2.status,
-    headers: { "content-type": r2.headers.get("content-type") ?? "text/plain" },
+    headers: {
+      "content-type": r2.headers.get("content-type") ?? "text/plain",
+    },
   });
 }
