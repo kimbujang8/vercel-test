@@ -1,50 +1,45 @@
-import crypto from "crypto";
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-function adminTokenFromPassword(pw: string) {
-  return crypto.createHash("sha256").update(pw).digest("hex");
-}
+const base = process.env.API_BASE;
+const key = process.env.API_KEY;
 
-function getBackendBaseUrl() {
-  const v = process.env.BACKEND_URL || "http://localhost:3000";
-  return v.replace(/\/$/, "");
-}
-
-export async function DELETE(
-  req: Request,
-  ctx: { params: Promise<{ id: string }> },
-) {
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-  if (!ADMIN_PASSWORD) {
+function mustEnv() {
+  if (!base || !key) {
     return NextResponse.json(
       {
-        error: { code: "SERVER_MISCONFIG", message: "ADMIN_PASSWORD not set" },
+        error: {
+          code: "SERVER_MISCONFIG",
+          message: "API_BASE/API_KEY not set",
+        },
       },
       { status: 500 },
     );
   }
+  return null;
+}
 
-  const cookieStore = await cookies();
-  const token = cookieStore.get("admin_session")?.value ?? "";
-  const expected = adminTokenFromPassword(ADMIN_PASSWORD);
+function normalizePhone(v: unknown): string {
+  return String(v ?? "").replace(/\D/g, "");
+}
 
-  if (!token || token !== expected) {
-    return NextResponse.json(
-      { error: { code: "UNAUTHORIZED", message: "admin auth required" } },
-      { status: 401 },
-    );
-  }
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
 
-  const API_KEY = process.env.API_KEY;
-  if (!API_KEY) {
-    return NextResponse.json(
-      { error: { code: "SERVER_MISCONFIG", message: "API_KEY not set" } },
-      { status: 500 },
-    );
-  }
+type AppRow = { id: number; phone: string };
 
-  const { id } = await ctx.params;
+// ✅ Vercel 빌드가 기대하는 시그니처로 맞춤
+export async function DELETE(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const mis = mustEnv();
+  if (mis) return mis;
+
+  const apiBase = base as string;
+  const apiKey = key as string;
+
+  const { id } = await ctx.params; // ✅ Promise 형태로 맞춤
   if (!/^\d+$/.test(id)) {
     return NextResponse.json(
       { error: { code: "BAD_REQUEST", message: "invalid id" } },
@@ -52,22 +47,87 @@ export async function DELETE(
     );
   }
 
-  const backend = getBackendBaseUrl();
-  const upstream = `${backend}/api/applications/${id}`;
+  // body에서 phone 받기
+  let parsed: unknown;
+  try {
+    parsed = await req.json();
+  } catch {
+    return NextResponse.json(
+      { error: { code: "BAD_REQUEST", message: "invalid JSON" } },
+      { status: 400 },
+    );
+  }
 
-  const r = await fetch(upstream, {
-    method: "DELETE",
-    headers: { "x-api-key": API_KEY },
+  if (!isObject(parsed)) {
+    return NextResponse.json(
+      { error: { code: "BAD_REQUEST", message: "JSON object required" } },
+      { status: 400 },
+    );
+  }
+
+  const phone = normalizePhone(parsed.phone);
+  if (!phone) {
+    return NextResponse.json(
+      { error: { code: "BAD_REQUEST", message: "phone required" } },
+      { status: 400 },
+    );
+  }
+
+  // 1) 해당 id 레코드 조회
+  const r1 = await fetch(`${apiBase}/api/applications/${id}`, {
+    headers: { "x-api-key": apiKey },
     cache: "no-store",
   });
 
-  const text = await r.text();
-  if (!r.ok) return new NextResponse(text, { status: r.status });
-
-  // server.js는 { ok: true } 같은 JSON을 줄 가능성이 높음
-  try {
-    return NextResponse.json(JSON.parse(text), { status: 200 });
-  } catch {
-    return new NextResponse(text, { status: 200 });
+  const t1 = await r1.text();
+  if (!r1.ok) {
+    return new NextResponse(t1, {
+      status: r1.status,
+      headers: {
+        "content-type": r1.headers.get("content-type") ?? "text/plain",
+      },
+    });
   }
+
+  let row: AppRow;
+  try {
+    row = JSON.parse(t1) as AppRow;
+  } catch {
+    return NextResponse.json(
+      {
+        error: {
+          code: "BAD_BACKEND_RESPONSE",
+          message: "backend did not return valid JSON",
+          backendText: t1.slice(0, 300),
+        },
+      },
+      { status: 502 },
+    );
+  }
+
+  // 2) 소유권 검증
+  if (normalizePhone(row.phone) !== phone) {
+    return NextResponse.json(
+      { error: { code: "FORBIDDEN", message: "not your application" } },
+      { status: 403 },
+    );
+  }
+
+  // 3) 삭제 실행
+  const r2 = await fetch(`${apiBase}/api/applications/${id}`, {
+    method: "DELETE",
+    headers: { "x-api-key": apiKey },
+    cache: "no-store",
+  });
+
+  // 204/205는 body 금지
+  if (r2.status === 204 || r2.status === 205) {
+    return new NextResponse(null, { status: r2.status });
+  }
+
+  const t2 = await r2.text();
+  return new NextResponse(t2, {
+    status: r2.status,
+    headers: { "content-type": r2.headers.get("content-type") ?? "text/plain" },
+  });
 }
