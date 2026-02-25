@@ -1,18 +1,19 @@
 import crypto from "crypto";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 function timingSafeEqualStr(a: string, b: string) {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ab.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ab, bb);
+  // 길이가 다르면 timingSafeEqual 자체가 예외/불가라서,
+  // 동일 길이로 맞춰서 비교(시간 누수 줄이기)
+  const ah = crypto.createHash("sha256").update(a).digest();
+  const bh = crypto.createHash("sha256").update(b).digest();
+  return crypto.timingSafeEqual(ah, bh);
 }
 
 function adminTokenFromPassword(pw: string) {
   return crypto.createHash("sha256").update(pw).digest("hex");
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
   if (!ADMIN_PASSWORD) {
     return NextResponse.json(

@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 function getBackendBaseUrl() {
   const v = process.env.BACKEND_URL || "http://localhost:3000";
   return v.replace(/\/$/, "");
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const API_KEY = process.env.API_KEY;
   if (!API_KEY) {
     return NextResponse.json(
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   return new NextResponse(text, {
     status: r.status,
     headers: {
-      "content-type": r.headers.get("content-type") ?? "application/json",
+      "content-type": r.headers.get("content-type") ?? "text/plain",
     },
   });
 }

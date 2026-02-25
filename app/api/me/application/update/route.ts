@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 type ApplicationRow = {
   id: number;
@@ -20,7 +20,7 @@ function normPhone(input: string) {
   return String(input).replace(/\D/g, "");
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const API_KEY = process.env.API_KEY;
   if (!API_KEY) {
     return NextResponse.json(
@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+
   if (
     count !== undefined &&
     (!Number.isInteger(count) || count < 1 || count > 50)
@@ -75,10 +76,30 @@ export async function POST(req: Request) {
   });
 
   const listText = await listRes.text();
-  if (!listRes.ok)
-    return new NextResponse(listText, { status: listRes.status });
+  if (!listRes.ok) {
+    return new NextResponse(listText, {
+      status: listRes.status,
+      headers: {
+        "content-type": listRes.headers.get("content-type") ?? "text/plain",
+      },
+    });
+  }
 
-  const list = JSON.parse(listText) as ApplicationRow[];
+  let list: ApplicationRow[];
+  try {
+    list = JSON.parse(listText) as ApplicationRow[];
+  } catch {
+    return NextResponse.json(
+      {
+        error: {
+          code: "BAD_BACKEND_RESPONSE",
+          message: "backend did not return valid JSON",
+        },
+      },
+      { status: 502 },
+    );
+  }
+
   const found = list.find((x) => x.name.trim() === name);
 
   if (!found) {
@@ -99,11 +120,14 @@ export async function POST(req: Request) {
       note: note.trim() ? note.trim() : null,
       ...(count !== undefined ? { count } : {}),
     }),
+    cache: "no-store",
   });
 
   const patchText = await patchRes.text();
   return new NextResponse(patchText, {
     status: patchRes.status,
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": patchRes.headers.get("content-type") ?? "text/plain",
+    },
   });
 }

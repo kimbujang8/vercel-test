@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const base = process.env.API_BASE;
 const key = process.env.API_KEY;
@@ -32,7 +32,7 @@ function normalizeCount(v: unknown): number {
 }
 
 // POST /api/applications
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const mis = mustEnv();
   if (mis) return mis;
 
@@ -53,7 +53,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // ✅ any 없이 count만 보정
   const body: JsonObject = { ...parsed, count: normalizeCount(parsed.count) };
 
   const res = await fetch(`${base}/api/applications`, {
@@ -63,8 +62,14 @@ export async function POST(req: Request) {
       "x-api-key": key!,
     },
     body: JSON.stringify(body),
+    cache: "no-store",
   });
 
   const text = await res.text();
-  return new NextResponse(text, { status: res.status });
+  return new NextResponse(text, {
+    status: res.status,
+    headers: {
+      "content-type": res.headers.get("content-type") ?? "text/plain",
+    },
+  });
 }

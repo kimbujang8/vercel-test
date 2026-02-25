@@ -1,13 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const base = process.env.API_BASE!;
 const key = process.env.API_KEY!;
 
 export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string } },
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
 ) {
-  const { id } = params;
+  const { id } = await ctx.params;
 
   const res = await fetch(`${base}/api/records/${id}`, {
     method: "DELETE",

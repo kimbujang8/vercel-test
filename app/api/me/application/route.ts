@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 type ApplicationRow = {
   id: number;
@@ -20,7 +20,7 @@ function normPhone(input: string) {
   return String(input).replace(/\D/g, "");
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const API_KEY = process.env.API_KEY;
   if (!API_KEY) {
     return NextResponse.json(
@@ -60,9 +60,25 @@ export async function POST(req: Request) {
   });
 
   const text = await r.text();
-  if (!r.ok) return new NextResponse(text, { status: r.status });
+  if (!r.ok) {
+    return new NextResponse(text, {
+      status: r.status,
+      headers: {
+        "content-type": r.headers.get("content-type") ?? "text/plain",
+      },
+    });
+  }
 
-  const list = JSON.parse(text) as ApplicationRow[];
+  let list: ApplicationRow[];
+  try {
+    list = JSON.parse(text) as ApplicationRow[];
+  } catch {
+    return NextResponse.json(
+      { error: { code: "BAD_BACKEND_RESPONSE", message: "invalid JSON" } },
+      { status: 502 },
+    );
+  }
+
   const found = list.find((x) => x.name.trim() === name);
 
   if (!found) {

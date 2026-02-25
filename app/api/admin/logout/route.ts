@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 type ApplicationRow = {
   id: number;
@@ -23,7 +23,7 @@ function getBackendBaseUrl() {
   return v.replace(/\/$/, "");
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
   if (!ADMIN_PASSWORD) {
     return NextResponse.json(
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     );
   }
 
-  const cookieStore = await cookies();
+  const cookieStore = await cookies(); // ✅ await 제거
   const token = cookieStore.get("admin_session")?.value ?? "";
   const expected = adminTokenFromPassword(ADMIN_PASSWORD);
 
@@ -65,9 +65,24 @@ export async function GET(req: Request) {
   });
 
   const text = await r.text();
-  if (!r.ok) return new NextResponse(text, { status: r.status });
+  if (!r.ok) {
+    return new NextResponse(text, {
+      status: r.status,
+      headers: {
+        "content-type": r.headers.get("content-type") ?? "text/plain",
+      },
+    });
+  }
 
-  // 타입 체크(최소)
-  const list = JSON.parse(text) as ApplicationRow[];
+  let list: ApplicationRow[];
+  try {
+    list = JSON.parse(text) as ApplicationRow[];
+  } catch {
+    return NextResponse.json(
+      { error: { code: "BAD_BACKEND_RESPONSE", message: "invalid JSON" } },
+      { status: 502 },
+    );
+  }
+
   return NextResponse.json(list, { status: 200 });
 }
