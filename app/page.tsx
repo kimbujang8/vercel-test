@@ -8,6 +8,10 @@ import {
   toBackendDinnerMenu,
 } from "@/app/dinnerMenuSentinel";
 import { normalizeMealCounts, totalFromRow } from "@/app/mealCounts";
+import {
+  normalizePersonName,
+  normalizePhoneKR,
+} from "@/app/personFields";
 
 type Meal = "dinner";
 
@@ -707,12 +711,10 @@ export default function Home() {
     setMyError(null);
 
     try {
-      const phoneNorm = myPhone.replace(/\D/g, "");
-
       const res = await fetch(`/api/me/application/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phoneNorm }),
+        body: JSON.stringify({ phone: normalizePhoneKR(myPhone) }),
       });
 
       const text = await res.text();
@@ -808,8 +810,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: myDate,
-          name: myName,
-          phone: myPhone,
+          name: normalizePersonName(myName),
+          phone: normalizePhoneKR(myPhone),
         }),
       });
 
@@ -863,8 +865,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: myDate,
-          name: myName,
-          phone: myPhone,
+          name: normalizePersonName(myName),
+          phone: normalizePhoneKR(myPhone),
           note: myNoteEdit,
           adultCount: counts.adultCount,
           childCount: counts.childCount,
@@ -2270,6 +2272,10 @@ export default function Home() {
                 <label>
                   이름 <span className="req">*</span>
                   <input
+                    type="text"
+                    name="my-application-name"
+                    autoComplete="name"
+                    enterKeyHint="next"
                     value={myName}
                     onChange={(e) => setMyName(e.target.value)}
                     placeholder="이름"
@@ -2281,9 +2287,13 @@ export default function Home() {
                 <label>
                   전화번호 <span className="req">*</span>
                   <input
+                    type="tel"
+                    name="my-application-phone"
+                    autoComplete="tel"
+                    enterKeyHint="search"
                     value={myPhone}
                     onChange={(e) => setMyPhone(e.target.value)}
-                    placeholder="010-1234-5678"
+                    placeholder="010-1234-5678 또는 +82 10…"
                     inputMode="tel"
                   />
                 </label>
@@ -2295,7 +2305,10 @@ export default function Home() {
                   className="btn btnPrimary"
                   onClick={fetchMyApplication}
                   disabled={
-                    myLoading || !myDate || !myName.trim() || !myPhone.trim()
+                    myLoading ||
+                    !myDate ||
+                    !normalizePersonName(myName) ||
+                    normalizePhoneKR(myPhone).length < 9
                   }
                 >
                   {myLoading ? "조회 중…" : "조회"}

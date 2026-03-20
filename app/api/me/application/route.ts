@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeMealCounts } from "@/app/mealCounts";
 import {
+  normalizePersonName,
+  normalizePhoneKR,
+} from "@/app/personFields";
+import {
+  backendBaseWithFallback,
   upstreamFailureResponse,
   upstreamFetch,
 } from "../../_shared/upstreamProxy";
@@ -20,15 +25,6 @@ type ApplicationRow = {
   updated_at: string;
 };
 
-function getBackendBaseUrl() {
-  const v = process.env.BACKEND_URL || "http://localhost:3000";
-  return v.replace(/\/$/, "");
-}
-
-function normPhone(input: string) {
-  return String(input).replace(/\D/g, "");
-}
-
 export async function POST(req: NextRequest) {
   const API_KEY = process.env.API_KEY;
   if (!API_KEY) {
@@ -45,17 +41,53 @@ export async function POST(req: NextRequest) {
   } | null;
 
   const date = body?.date ?? "";
-  const name = (body?.name ?? "").trim();
-  const phone = normPhone(body?.phone ?? "");
+  const name = normalizePersonName(body?.name ?? "");
+  const phone = normalizePhoneKR(body?.phone ?? "");
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !name || phone.length < 9) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "invalid input" } },
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "날짜를 선택해 주세요.",
+        },
+      },
+      { status: 400 },
+    );
+  }
+  if (!name) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "이름을 입력해 주세요.",
+        },
+      },
+      { status: 400 },
+    );
+  }
+  if (phone.length < 9) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message:
+            "전화번호를 확인해 주세요. (010 또는 +82 형식, 숫자 9자리 이상)",
+        },
+      },
       { status: 400 },
     );
   }
 
-  const backend = getBackendBaseUrl();
+  let backend: string;
+  try {
+    backend = backendBaseWithFallback();
+  } catch (e) {
+    return NextResponse.json(
+      { error: { code: "SERVER_MISCONFIG", message: String(e) } },
+      { status: 500 },
+    );
+  }
   const qs = new URLSearchParams({
     from: date,
     to: date,
@@ -91,7 +123,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const found = list.find((x) => x.name.trim() === name);
+  const found = list.find(
+    (x) => normalizePersonName(x.name) === name,
+  );
 
   if (!found) {
     return NextResponse.json({ ok: true, application: null }, { status: 200 });

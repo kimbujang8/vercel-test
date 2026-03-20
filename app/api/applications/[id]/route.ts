@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizePhoneKR } from "@/app/personFields";
 import {
   upstreamFailureResponse,
   upstreamFetch,
@@ -24,10 +25,6 @@ function mustEnv() {
     );
   }
   return null;
-}
-
-function normalizePhone(v: unknown): string {
-  return String(v ?? "").replace(/\D/g, "");
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -74,7 +71,7 @@ export async function DELETE(
     );
   }
 
-  const phone = normalizePhone(parsed.phone);
+  const phone = normalizePhoneKR(String(parsed.phone ?? ""));
   if (!phone) {
     return NextResponse.json(
       { error: { code: "BAD_REQUEST", message: "phone required" } },
@@ -112,7 +109,7 @@ export async function DELETE(
   }
 
   // 2) 소유권 검증
-  if (normalizePhone(row.phone) !== phone) {
+  if (normalizePhoneKR(row.phone) !== phone) {
     return NextResponse.json(
       { error: { code: "FORBIDDEN", message: "not your application" } },
       { status: 403 },
