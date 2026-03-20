@@ -1926,7 +1926,7 @@ export default function Home() {
                     <input
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="010-1234-5678 또는 01012345678"
+                      placeholder="01012345678 또는 010-1234-5678"
                       inputMode="tel"
                     />
                   </label>
@@ -2293,7 +2293,7 @@ export default function Home() {
                     enterKeyHint="search"
                     value={myPhone}
                     onChange={(e) => setMyPhone(e.target.value)}
-                    placeholder="010-1234-5678 또는 01012345678"
+                    placeholder="01012345678 또는 010-1234-5678"
                     inputMode="tel"
                   />
                 </label>
