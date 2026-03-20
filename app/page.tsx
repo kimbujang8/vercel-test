@@ -938,8 +938,8 @@ export default function Home() {
           inset: 0;
           background-image: url("/pjbc-silverware.png");
           background-repeat: no-repeat;
-          background-position: 50% 12%;
-          background-size: 520px auto;
+          background-position: 50% 10%;
+          background-size: min(520px, 92vw) auto;
           opacity: 0.06;
           filter: grayscale(100%) contrast(110%);
           pointer-events: none;
@@ -950,15 +950,29 @@ export default function Home() {
         }
         .page {
           min-height: 100vh;
-          padding: 40px 16px 80px;
+          min-height: 100dvh;
+          padding-top: max(16px, env(safe-area-inset-top, 0px));
+          padding-right: max(12px, env(safe-area-inset-right, 0px));
+          padding-bottom: max(48px, env(safe-area-inset-bottom, 0px));
+          padding-left: max(12px, env(safe-area-inset-left, 0px));
           font-family: var(--font-noto-sans-kr), "Noto Sans KR", ui-sans-serif, system-ui, -apple-system, sans-serif;
           color: #0f172a;
           position: relative;
           z-index: 1;
+          overflow-x: hidden;
+          width: 100%;
+          max-width: 100vw;
+        }
+        @media (min-width: 640px) {
+          .page {
+            padding: max(40px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px))
+              max(80px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+          }
         }
         .container {
           max-width: 1120px;
           margin: 0 auto;
+          width: 100%;
         }
         .topbar {
           display: flex;
@@ -973,6 +987,16 @@ export default function Home() {
           box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
           backdrop-filter: blur(18px);
         }
+        @media (max-width: 639px) {
+          .topbar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+          }
+        }
         .titleWrap {
           display: flex;
           flex-direction: column;
@@ -985,6 +1009,13 @@ export default function Home() {
           display: flex;
           align-items: flex-start;
           gap: 10px;
+        }
+        @media (max-width: 639px) {
+          .title {
+            font-size: 19px;
+            gap: 8px;
+            align-items: center;
+          }
         }
         .logoWrap {
           width: 58px;
@@ -1000,6 +1031,14 @@ export default function Home() {
           flex: 0 0 auto;
           margin-top: 6px;
           padding: 0;
+        }
+        @media (max-width: 639px) {
+          .logoWrap {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            margin-top: 0;
+          }
         }
         .logoImg {
           width: 100%;
@@ -1029,6 +1068,11 @@ export default function Home() {
           margin: 0;
           transform: translateY(-1px);
         }
+        @media (max-width: 639px) {
+          .subtitleInline {
+            font-size: 11px;
+          }
+        }
         @media (max-width: 520px) {
           .subtitle {
             padding-left: 0;
@@ -1041,9 +1085,38 @@ export default function Home() {
           flex-wrap: wrap;
           justify-content: flex-end;
         }
+        @media (max-width: 639px) {
+          .actions {
+            justify-content: stretch;
+            width: 100%;
+            gap: 6px;
+          }
+          .actions .btn {
+            flex: 1 1 calc(33.333% - 4px);
+            min-width: 0;
+            height: 38px;
+            padding: 0 6px;
+            font-size: 12px;
+            border-radius: 10px;
+          }
+          .actions .pill {
+            flex: 1 1 100%;
+            justify-content: center;
+            margin: 0;
+          }
+          /* 관리자: 뱃지 아래 로그아웃 한 줄 전체 */
+          .actions > .pill ~ .btn:only-of-type {
+            flex: 1 1 100%;
+          }
+        }
         .hero {
           text-align: center;
           margin-bottom: 32px;
+        }
+        @media (max-width: 639px) {
+          .hero {
+            margin-bottom: 20px;
+          }
         }
         .heroTitleRow {
           display: flex;
@@ -1053,12 +1126,24 @@ export default function Home() {
           gap: 10px 14px;
           margin: 0 0 8px;
         }
+        @media (max-width: 639px) {
+          .heroTitleRow {
+            flex-direction: column;
+            gap: 8px;
+          }
+        }
         .heroTitle {
           margin: 0;
           font-size: 32px;
           font-weight: 800;
           letter-spacing: -0.03em;
           color: #0f172a;
+        }
+        @media (max-width: 639px) {
+          .heroTitle {
+            font-size: 22px;
+            width: 100%;
+          }
         }
         .heroWeekRange {
           display: inline-flex;
@@ -1071,10 +1156,23 @@ export default function Home() {
           font-weight: 600;
           color: #475569;
         }
+        @media (max-width: 639px) {
+          .heroWeekRange {
+            font-size: 12px;
+            padding: 5px 10px;
+          }
+        }
         .heroSub {
           margin: 0;
           font-size: 15px;
           color: #6b7280;
+        }
+        @media (max-width: 639px) {
+          .heroSub {
+            font-size: 13px;
+            padding: 0 4px;
+            line-height: 1.45;
+          }
         }
         .pill {
           display: inline-flex;
@@ -1104,6 +1202,12 @@ export default function Home() {
           padding: 20px 20px 18px;
           box-shadow: 0 24px 80px rgba(15, 23, 42, 0.08);
           backdrop-filter: blur(10px);
+        }
+        @media (max-width: 639px) {
+          .card {
+            padding: 16px 14px 14px;
+            border-radius: 14px;
+          }
         }
         .cardHeader {
           display: flex;
@@ -1163,25 +1267,11 @@ export default function Home() {
             grid-template-columns: repeat(3, minmax(0, 1fr));
           }
         }
-        @media (max-width: 600px) {
+        /* 휴대폰: 카드 한 줄 전체 너비(2~5열 압축 깨짐 방지) */
+        @media (max-width: 639px) {
           .weekDayRows {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
-        @media (max-width: 380px) {
-          .weekDayRows {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: nowrap;
-            gap: 10px;
-            overflow-x: auto;
-            padding-bottom: 6px;
-            -webkit-overflow-scrolling: touch;
-            scroll-snap-type: x mandatory;
-          }
-          .weekDayRows .weekDayCard {
-            flex: 0 0 min(260px, 82vw);
-            scroll-snap-align: start;
+            grid-template-columns: 1fr;
+            gap: 12px;
           }
         }
 
@@ -1294,6 +1384,15 @@ export default function Home() {
           min-height: 72px;
           max-height: 140px;
         }
+        @media (max-width: 639px) {
+          .weekMenuFrame {
+            max-height: 200px;
+            min-height: 80px;
+          }
+          .weekDayCardDate {
+            font-size: 13px;
+          }
+        }
         /* 메뉴 미등록 / 식사 없음 안내 (본문 메뉴와 시각적 구분) */
         .weekMenuPlaceholder {
           display: block;
@@ -1351,6 +1450,13 @@ export default function Home() {
           background: #fff;
           outline: none;
           font-size: 14px;
+        }
+        @media (max-width: 639px) {
+          input,
+          select,
+          textarea {
+            font-size: 16px;
+          }
         }
         input:focus,
         select:focus {
@@ -1476,8 +1582,15 @@ export default function Home() {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 16px;
+          padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px))
+            max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
           z-index: 60;
+        }
+        @media (max-width: 639px) {
+          .modalBackdrop {
+            align-items: flex-end;
+            padding: 0;
+          }
         }
         .modal {
           width: 100%;
@@ -1487,6 +1600,18 @@ export default function Home() {
           border-radius: 18px;
           box-shadow: 0 20px 60px rgba(2, 6, 23, 0.35);
           padding: 16px;
+          max-height: min(92vh, 92dvh);
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        @media (max-width: 639px) {
+          .modal {
+            max-width: 100%;
+            width: 100%;
+            max-height: min(88dvh, 100vh);
+            border-radius: 18px 18px 0 0;
+            padding: 14px 14px max(18px, env(safe-area-inset-bottom, 0px));
+          }
         }
         .modalTitle {
           margin: 0;
@@ -1515,6 +1640,11 @@ export default function Home() {
           margin: 0;
           line-height: 1.1;
           text-align: center;
+        }
+        @media (max-width: 639px) {
+          .applyModalDateMain {
+            font-size: 20px;
+          }
         }
         .applyModalDateSub {
           margin-top: 8px;
