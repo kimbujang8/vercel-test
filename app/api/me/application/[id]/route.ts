@@ -1,4 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  upstreamFailureResponse,
+  upstreamFetch,
+} from "../../../_shared/upstreamProxy";
+import {
+  upstreamNullResponse,
+  upstreamTextResponse,
+} from "../../../_shared/upstreamTextResponse";
 
 const base = process.env.API_BASE;
 const key = process.env.API_KEY;
@@ -76,20 +84,17 @@ export async function DELETE(
     );
   }
 
-  // 1) 해당 id 레코드 조회
-  const r1 = await fetch(`${apiBase}/api/applications/${id}`, {
-    headers: { "x-api-key": apiKey },
-    cache: "no-store",
-  });
+  const url1 = `${apiBase}/api/applications/${id}`;
+  let r1: Response;
+  try {
+    r1 = await upstreamFetch(url1, { apiKey });
+  } catch (e) {
+    return upstreamFailureResponse(url1, e);
+  }
 
   const t1 = await r1.text();
   if (!r1.ok) {
-    return new NextResponse(t1, {
-      status: r1.status,
-      headers: {
-        "content-type": r1.headers.get("content-type") ?? "text/plain",
-      },
-    });
+    return upstreamTextResponse(r1, t1, "text/plain");
   }
 
   let row: AppRow;
@@ -116,23 +121,22 @@ export async function DELETE(
     );
   }
 
-  // 3) 백엔드 삭제 호출
-  const r2 = await fetch(`${apiBase}/api/applications/${id}`, {
-    method: "DELETE",
-    headers: { "x-api-key": apiKey },
-    cache: "no-store",
-  });
+  const url2 = `${apiBase}/api/applications/${id}`;
+  let r2: Response;
+  try {
+    r2 = await upstreamFetch(url2, {
+      method: "DELETE",
+      apiKey,
+    });
+  } catch (e) {
+    return upstreamFailureResponse(url2, e);
+  }
 
   // 204/205는 body 금지
   if (r2.status === 204 || r2.status === 205) {
-    return new NextResponse(null, { status: r2.status });
+    return upstreamNullResponse(r2.status);
   }
 
   const t2 = await r2.text();
-  return new NextResponse(t2, {
-    status: r2.status,
-    headers: {
-      "content-type": r2.headers.get("content-type") ?? "text/plain",
-    },
-  });
+  return upstreamTextResponse(r2, t2, "text/plain");
 }

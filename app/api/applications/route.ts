@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeMealCounts } from "@/app/mealCounts";
+import {
+  upstreamFailureResponse,
+  upstreamFetch,
+} from "../_shared/upstreamProxy";
 
-const base = process.env.API_BASE;
+const base = process.env.BACKEND_URL ?? process.env.API_BASE;
 const key = process.env.API_KEY;
 
 function mustEnv() {
@@ -9,7 +14,7 @@ function mustEnv() {
       {
         error: {
           code: "SERVER_MISCONFIG",
-          message: "API_BASE/API_KEY not set",
+          message: "BACKEND_URL(or API_BASE)/API_KEY not set",
         },
       },
       { status: 500 },
@@ -22,13 +27,6 @@ type JsonObject = Record<string, unknown>;
 
 function isObject(v: unknown): v is JsonObject {
   return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-function normalizeCount(v: unknown): number {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
-  if (!Number.isFinite(n)) return 1;
-  const i = Math.floor(n);
-  return i >= 1 ? i : 1;
 }
 
 // POST /api/applications
@@ -53,23 +51,38 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body: JsonObject = { ...parsed, count: normalizeCount(parsed.count) };
-
-  const res = await fetch(`${base}/api/applications`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": key!,
-    },
-    body: JSON.stringify(body),
-    cache: "no-store",
+  const counts = normalizeMealCounts(parsed, {
+    maxPerField: 50,
+    maxTotal: 50,
+    requireTotalAtLeastOne: true,
   });
 
-  const text = await res.text();
-  return new NextResponse(text, {
-    status: res.status,
-    headers: {
-      "content-type": res.headers.get("content-type") ?? "text/plain",
-    },
-  });
+  // 새 필드가 있으면 그것을 우선하고, 항상 count=합계로 동기화
+  const body: JsonObject = {
+    ...parsed,
+    adultCount: counts.adultCount,
+    childCount: counts.childCount,
+    preschoolCount: counts.preschoolCount,
+    count: counts.total,
+  };
+
+  const url = `${base}/api/applications`;
+  try {
+    const res = await upstreamFetch(url, {
+      method: "POST",
+      apiKey: key!,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const text = await res.text();
+    return new NextResponse(text, {
+      status: res.status,
+      headers: {
+        "content-type": res.headers.get("content-type") ?? "text/plain",
+      },
+    });
+  } catch (e) {
+    return upstreamFailureResponse(url, e);
+  }
 }

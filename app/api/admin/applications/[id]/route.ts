@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  upstreamFailureResponse,
+  upstreamFetch,
+} from "../../../_shared/upstreamProxy";
+import {
+  upstreamNullResponse,
+  upstreamTextResponse,
+} from "../../../_shared/upstreamTextResponse";
 
-const base = process.env.API_BASE;
+const base = process.env.BACKEND_URL ?? process.env.API_BASE;
 const key = process.env.API_KEY;
 
 function mustEnv() {
@@ -9,7 +17,7 @@ function mustEnv() {
       {
         error: {
           code: "SERVER_MISCONFIG",
-          message: "API_BASE/API_KEY not set",
+          message: "BACKEND_URL(or API_BASE)/API_KEY not set",
         },
       },
       { status: 500 },
@@ -38,19 +46,17 @@ export async function GET(
     );
   }
 
-  const res = await fetch(`${apiBase}/api/applications/${id}`, {
-    headers: { "x-api-key": apiKey },
-    cache: "no-store",
-  });
+  const url = `${apiBase}/api/applications/${id}`;
+  let res: Response;
+  try {
+    res = await upstreamFetch(url, { apiKey });
+  } catch (e) {
+    return upstreamFailureResponse(url, e);
+  }
 
   const text = await res.text();
 
-  return new NextResponse(text, {
-    status: res.status,
-    headers: {
-      "content-type": res.headers.get("content-type") ?? "application/json",
-    },
-  });
+  return upstreamTextResponse(res, text, "application/json");
 }
 
 // 🔹 관리자 수정 (PATCH)
@@ -75,24 +81,22 @@ export async function PATCH(
 
   const body = await req.text();
 
-  const res = await fetch(`${apiBase}/api/applications/${id}`, {
-    method: "PATCH",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-    },
-    body,
-    cache: "no-store",
-  });
+  const url = `${apiBase}/api/applications/${id}`;
+  let res: Response;
+  try {
+    res = await upstreamFetch(url, {
+      method: "PATCH",
+      apiKey,
+      headers: { "content-type": "application/json" },
+      body,
+    });
+  } catch (e) {
+    return upstreamFailureResponse(url, e);
+  }
 
   const text = await res.text();
 
-  return new NextResponse(text, {
-    status: res.status,
-    headers: {
-      "content-type": res.headers.get("content-type") ?? "application/json",
-    },
-  });
+  return upstreamTextResponse(res, text, "application/json");
 }
 
 // 🔹 관리자 삭제
@@ -115,22 +119,22 @@ export async function DELETE(
     );
   }
 
-  const res = await fetch(`${apiBase}/api/applications/${id}`, {
-    method: "DELETE",
-    headers: { "x-api-key": apiKey },
-    cache: "no-store",
-  });
+  const url = `${apiBase}/api/applications/${id}`;
+  let res: Response;
+  try {
+    res = await upstreamFetch(url, {
+      method: "DELETE",
+      apiKey,
+    });
+  } catch (e) {
+    return upstreamFailureResponse(url, e);
+  }
 
   if (res.status === 204 || res.status === 205) {
-    return new NextResponse(null, { status: res.status });
+    return upstreamNullResponse(res.status);
   }
 
   const text = await res.text();
 
-  return new NextResponse(text, {
-    status: res.status,
-    headers: {
-      "content-type": res.headers.get("content-type") ?? "application/json",
-    },
-  });
+  return upstreamTextResponse(res, text, "application/json");
 }

@@ -6,22 +6,6 @@ import {
   upstreamFetch,
 } from "../../_shared/upstreamProxy";
 
-type ApplicationRow = {
-  id: number;
-  date: string;
-  meal: "dinner";
-  name: string;
-  phone: string;
-  ranchNumber?: string | null;
-  count: number;
-  adultCount?: number;
-  childCount?: number;
-  preschoolCount?: number;
-  note: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
 function adminTokenFromPassword(pw: string) {
   return crypto.createHash("sha256").update(pw).digest("hex");
 }
@@ -32,27 +16,31 @@ function getBackendBaseUrl() {
   return v.replace(/\/$/, "");
 }
 
-export async function GET(req: NextRequest) {
+async function requireAdmin() {
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
   if (!ADMIN_PASSWORD) {
     return NextResponse.json(
-      {
-        error: { code: "SERVER_MISCONFIG", message: "ADMIN_PASSWORD not set" },
-      },
+      { error: { code: "SERVER_MISCONFIG", message: "ADMIN_PASSWORD not set" } },
       { status: 500 },
     );
   }
 
-  const cookieStore = await cookies(); // ✅ 이 프로젝트에서는 await 필요
+  const cookieStore = await cookies();
   const token = cookieStore.get("admin_session")?.value ?? "";
   const expected = adminTokenFromPassword(ADMIN_PASSWORD);
-
   if (!token || token !== expected) {
     return NextResponse.json(
       { error: { code: "UNAUTHORIZED", message: "admin auth required" } },
       { status: 401 },
     );
   }
+
+  return null;
+}
+
+export async function GET(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (auth) return auth;
 
   const API_KEY = process.env.API_KEY;
   if (!API_KEY) {
@@ -63,10 +51,10 @@ export async function GET(req: NextRequest) {
   }
 
   const url = new URL(req.url);
-  const qs = url.searchParams.toString();
+  const date = url.searchParams.get("date") ?? "";
 
   const backend = getBackendBaseUrl();
-  const upstream = `${backend}/api/applications${qs ? `?${qs}` : ""}`;
+  const upstream = `${backend}/api/dinner-menu?date=${encodeURIComponent(date)}`;
 
   let r: Response;
   try {
@@ -76,24 +64,44 @@ export async function GET(req: NextRequest) {
   }
 
   const text = await r.text();
-  if (!r.ok) {
-    return new NextResponse(text, {
-      status: r.status,
-      headers: {
-        "content-type": r.headers.get("content-type") ?? "text/plain",
-      },
-    });
-  }
+  return new NextResponse(text, {
+    status: r.status,
+    headers: { "content-type": r.headers.get("content-type") ?? "application/json" },
+  });
+}
 
-  let list: ApplicationRow[];
-  try {
-    list = JSON.parse(text) as ApplicationRow[];
-  } catch {
+export async function PUT(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (auth) return auth;
+
+  const API_KEY = process.env.API_KEY;
+  if (!API_KEY) {
     return NextResponse.json(
-      { error: { code: "BAD_BACKEND_RESPONSE", message: "invalid JSON" } },
-      { status: 502 },
+      { error: { code: "SERVER_MISCONFIG", message: "API_KEY not set" } },
+      { status: 500 },
     );
   }
 
-  return NextResponse.json(list, { status: 200 });
+  const backend = getBackendBaseUrl();
+  const upstream = `${backend}/api/dinner-menu`;
+
+  const body = await req.text();
+  let r: Response;
+  try {
+    r = await upstreamFetch(upstream, {
+      method: "PUT",
+      apiKey: API_KEY,
+      headers: { "content-type": "application/json" },
+      body,
+    });
+  } catch (e) {
+    return upstreamFailureResponse(upstream, e);
+  }
+
+  const text = await r.text();
+  return new NextResponse(text, {
+    status: r.status,
+    headers: { "content-type": r.headers.get("content-type") ?? "application/json" },
+  });
 }
+

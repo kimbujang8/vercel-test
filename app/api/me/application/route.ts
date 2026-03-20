@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeMealCounts } from "@/app/mealCounts";
+import {
+  upstreamFailureResponse,
+  upstreamFetch,
+} from "../../_shared/upstreamProxy";
 
 type ApplicationRow = {
   id: number;
@@ -6,7 +11,11 @@ type ApplicationRow = {
   meal: "dinner";
   name: string;
   phone: string;
+  ranchNumber?: string | null;
   count: number;
+  adultCount?: number;
+  childCount?: number;
+  preschoolCount?: number;
   note: string | null;
   updated_at: string;
 };
@@ -54,10 +63,13 @@ export async function POST(req: NextRequest) {
     phone,
   }).toString();
 
-  const r = await fetch(`${backend}/api/applications?${qs}`, {
-    headers: { "x-api-key": API_KEY },
-    cache: "no-store",
-  });
+  const url = `${backend}/api/applications?${qs}`;
+  let r: Response;
+  try {
+    r = await upstreamFetch(url, { apiKey: API_KEY });
+  } catch (e) {
+    return upstreamFailureResponse(url, e);
+  }
 
   const text = await r.text();
   if (!r.ok) {
@@ -85,6 +97,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, application: null }, { status: 200 });
   }
 
+  const counts = normalizeMealCounts(found, {
+    maxPerField: 50,
+    maxTotal: 50,
+    requireTotalAtLeastOne: true,
+  });
+
   return NextResponse.json(
     {
       ok: true,
@@ -94,7 +112,12 @@ export async function POST(req: NextRequest) {
         meal: found.meal,
         name: found.name,
         phone: found.phone,
-        count: found.count ?? 1,
+        ranchNumber:
+          typeof found.ranchNumber === "string" ? found.ranchNumber : "",
+        adultCount: counts.adultCount,
+        childCount: counts.childCount,
+        preschoolCount: counts.preschoolCount,
+        count: counts.total,
         note: found.note ?? "",
         updated_at: found.updated_at,
       },

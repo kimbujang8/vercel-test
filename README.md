@@ -34,3 +34,18 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+### Environment variables (this project)
+
+Vercel **Project → Settings → Environment Variables**에 아래를 설정하세요. 자세한 설명은 [`.env.example`](./.env.example) 참고.
+
+| Name | Required | Notes |
+|------|----------|--------|
+| `BACKEND_URL` | 권장 | 백엔드 루트 URL (`https://...`, 끝 `/` 없음) |
+| `API_BASE` | 일부 라우트 | `records` 등; 없으면 `BACKEND_URL`과 동일 값 권장 |
+| `API_KEY` | 예 | 백엔드 `x-api-key` |
+| `ADMIN_PASSWORD` | 예 | 관리자 로그인 |
+| `UPSTREAM_FETCH_TIMEOUT_MS` | 아니오 | 백엔드 fetch 타임아웃(ms), 기본 25000 |
+| `UPSTREAM_LOG` | 아니오 | `0`이면 upstream 에러 콘솔 로그 비활성화 |
+
+배포 전 로컬에서 `npm run build`로 한 번 확인하는 것을 권장합니다.
