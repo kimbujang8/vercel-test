@@ -143,6 +143,41 @@ function formatMonthDay(ymd: string): string {
   return `${Number(m ?? 1)}/${Number(d ?? 1)}`;
 }
 
+/**
+ * 백엔드 ISO 문자열 → 브라우저가 UTC(밀리초)로 해석한 뒤, IANA `Asia/Seoul` 벽시계로 변환해 표시.
+ * (`+9시간` 수동 보정 대신 표준 타임존 변환 — 한국은 연중 UTC+9 고정과 동일 결과)
+ */
+function formatDateTimeKST(iso: string | null | undefined): string {
+  if (iso == null) return "";
+  const s = String(iso).trim();
+  if (s === "") return "";
+  const ms = Date.parse(s);
+  if (!Number.isFinite(ms)) return s;
+  const instant = new Date(ms);
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(instant);
+
+  const pick = (t: Intl.DateTimeFormatPart["type"]) =>
+    parts.find((p) => p.type === t)?.value ?? "";
+
+  const yyyy = pick("year");
+  const mm = pick("month").padStart(2, "0");
+  const dd = pick("day").padStart(2, "0");
+  const hh = pick("hour").padStart(2, "0");
+  const mi = pick("minute").padStart(2, "0");
+  const ss = pick("second").padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+}
+
 function weekdayLabel(ymd: string): string {
   const names = ["일", "월", "화", "수", "목", "금", "토"];
   return names[weekdayForYmd(ymd)] ?? "";
@@ -499,7 +534,7 @@ export default function Home() {
             <td>${c.childCount}</td>
             <td>${c.preschoolCount}</td>
             <td>${escapeHtml(r.note ?? "")}</td>
-            <td>${escapeHtml(r.updated_at)}</td>
+            <td>${escapeHtml(formatDateTimeKST(r.updated_at))}</td>
           </tr>`;
         })
         .join("");
@@ -529,7 +564,7 @@ export default function Home() {
             <div class="meta">
               ${escapeHtml(totalsLine)}
               <br/>
-              생성 시각: ${escapeHtml(new Date().toLocaleString())}
+              생성 시각(KST): ${escapeHtml(formatDateTimeKST(new Date().toISOString()))}
             </div>
             <table>
               <thead>
@@ -544,7 +579,7 @@ export default function Home() {
                   <th>자녀</th>
                   <th>미취학</th>
                   <th>note</th>
-                  <th>updated_at</th>
+                  <th>수정 시각(KST)</th>
                 </tr>
               </thead>
               <tbody>
@@ -670,7 +705,11 @@ export default function Home() {
           typeof data?.dinnerMenu === "string" ? data.dinnerMenu : "",
         ),
       );
-      setMenuMsg(data?.updated_at ? `불러오기 완료 (updated ${data.updated_at})` : "불러오기 완료");
+      setMenuMsg(
+        data?.updated_at
+          ? `불러오기 완료 (수정 ${formatDateTimeKST(data.updated_at)})`
+          : "불러오기 완료",
+      );
     } catch (e) {
       setMenuMsg(`조회 실패: ${String(e)}`);
     } finally {
@@ -2401,7 +2440,7 @@ export default function Home() {
                     <th>자녀</th>
                     <th>미취학</th>
                     <th>note</th>
-                    <th>updated_at</th>
+                    <th>수정 시각(KST)</th>
                     <th>action</th>
                   </tr>
                 </thead>
@@ -2418,7 +2457,7 @@ export default function Home() {
                       <td>{normalizeMealCounts(r).childCount}</td>
                       <td>{normalizeMealCounts(r).preschoolCount}</td>
                       <td>{r.note ?? ""}</td>
-                      <td>{r.updated_at}</td>
+                      <td>{formatDateTimeKST(r.updated_at)}</td>
                       <td>
                         <button
                           type="button"
