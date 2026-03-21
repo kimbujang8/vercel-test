@@ -223,6 +223,53 @@ export default function Home() {
   const [myChildCountEdit, setMyChildCountEdit] = useState<number>(0);
   const [myPreschoolCountEdit, setMyPreschoolCountEdit] = useState<number>(0);
 
+  // 모바일: 모달 안 스크롤 시 뒤 홈이 같이 밀리는 현상 방지 (배경 스크롤 잠금)
+  useEffect(() => {
+    const open =
+      showApplyModal ||
+      showMyModal ||
+      showMyUpdateDoneModal ||
+      showAdminLogin;
+    if (!open) return;
+
+    const scrollY = window.scrollY;
+    const html = document.documentElement;
+    const body = document.body;
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+    };
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+
+    return () => {
+      html.style.overflow = prev.htmlOverflow;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.position = prev.bodyPosition;
+      body.style.top = prev.bodyTop;
+      body.style.left = prev.bodyLeft;
+      body.style.right = prev.bodyRight;
+      body.style.width = prev.bodyWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, [
+    showApplyModal,
+    showMyModal,
+    showMyUpdateDoneModal,
+    showAdminLogin,
+  ]);
+
   const adminQueryString = useMemo(() => {
     const sp = new URLSearchParams();
     sp.set("from", queryDate);
@@ -1587,6 +1634,9 @@ export default function Home() {
           padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px))
             max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
           z-index: 60;
+          overscroll-behavior: none;
+          overflow: hidden;
+          touch-action: none;
         }
         @media (max-width: 639px) {
           .modalBackdrop {
@@ -1605,6 +1655,8 @@ export default function Home() {
           max-height: min(92vh, 92dvh);
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
+          touch-action: pan-y;
         }
         @media (max-width: 639px) {
           .modal {
