@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   fromBackendDinnerMenu,
@@ -168,6 +168,16 @@ function applicationNameFieldError(name: string): string | null {
   return null;
 }
 
+/** 모달용 히스토리 엔트리와 중복 push 방지 (React Strict Mode 이중 effect 대비) */
+function overlayHistoryKindMatches(
+  state: unknown,
+  kind: string,
+): boolean {
+  if (typeof state !== "object" || state === null) return false;
+  const o = state as { pjbcOverlay?: { kind?: string } };
+  return o.pjbcOverlay?.kind === kind;
+}
+
 export default function Home() {
   const [queryDate, setQueryDate] = useState<string>(todayKST());
   // 페이지를 켜둔 채로 날짜가 바뀌면(자정 통과) 메뉴 조회가 갱신되도록
@@ -231,6 +241,86 @@ export default function Home() {
   const [myAdultCountEdit, setMyAdultCountEdit] = useState<number>(0);
   const [myChildCountEdit, setMyChildCountEdit] = useState<number>(0);
   const [myPreschoolCountEdit, setMyPreschoolCountEdit] = useState<number>(0);
+
+  const uiRef = useRef({
+    showApplyModal,
+    showMyModal,
+    showMyUpdateDoneModal,
+    showAdminLogin,
+  });
+  uiRef.current = {
+    showApplyModal,
+    showMyModal,
+    showMyUpdateDoneModal,
+    showAdminLogin,
+  };
+
+  // 브라우저 뒤로가기: 모달만 닫고, 한 번 더 누르면 실제 이전 페이지(예: 안내)로 이동
+  useEffect(() => {
+    function onPopState() {
+      const u = uiRef.current;
+      if (u.showMyUpdateDoneModal) {
+        setShowMyUpdateDoneModal(false);
+        return;
+      }
+      if (u.showAdminLogin) {
+        setShowAdminLogin(false);
+        return;
+      }
+      if (u.showApplyModal) {
+        setShowApplyModal(false);
+        return;
+      }
+      if (u.showMyModal) {
+        setShowMyModal(false);
+        return;
+      }
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    if (!showApplyModal) return;
+    if (overlayHistoryKindMatches(window.history.state, "apply")) return;
+    window.history.pushState(
+      { pjbcOverlay: { kind: "apply" } },
+      "",
+      window.location.href,
+    );
+  }, [showApplyModal]);
+
+  useEffect(() => {
+    if (!showMyModal) return;
+    if (overlayHistoryKindMatches(window.history.state, "my")) return;
+    window.history.pushState(
+      { pjbcOverlay: { kind: "my" } },
+      "",
+      window.location.href,
+    );
+  }, [showMyModal]);
+
+  useEffect(() => {
+    if (!showMyUpdateDoneModal) return;
+    if (overlayHistoryKindMatches(window.history.state, "myUpdateDone"))
+      return;
+    window.history.pushState(
+      { pjbcOverlay: { kind: "myUpdateDone" } },
+      "",
+      window.location.href,
+    );
+  }, [showMyUpdateDoneModal]);
+
+  useEffect(() => {
+    if (!showAdminLogin) return;
+    if (overlayHistoryKindMatches(window.history.state, "adminLogin"))
+      return;
+    window.history.pushState(
+      { pjbcOverlay: { kind: "adminLogin" } },
+      "",
+      window.location.href,
+    );
+  }, [showAdminLogin]);
 
   // 모바일: 모달 안 스크롤 시 뒤 홈이 같이 밀리는 현상 방지 (배경 스크롤 잠금)
   useEffect(() => {
@@ -653,7 +743,15 @@ export default function Home() {
   }
 
   function closeApplyModal() {
-    setShowApplyModal(false);
+    window.history.back();
+  }
+
+  function closeMyModal() {
+    window.history.back();
+  }
+
+  function closeAdminLoginModal() {
+    window.history.back();
   }
 
   function resetApplyForm() {
@@ -667,14 +765,17 @@ export default function Home() {
   }
 
   function confirmMyUpdateDone() {
-    setShowMyUpdateDoneModal(false);
-    setShowMyModal(false);
     setMyApp(null);
     setMyError(null);
     setMyNoteEdit("");
     setMyAdultCountEdit(0);
     setMyChildCountEdit(0);
     setMyPreschoolCountEdit(0);
+    // 수정완료·내역 모달 각각 pushState 했으므로 히스토리 2단계 복귀
+    window.history.back();
+    setTimeout(() => {
+      window.history.back();
+    }, 0);
   }
 
   async function submit() {
@@ -845,11 +946,12 @@ export default function Home() {
       }
 
       setIsAdmin(true);
-      setShowAdminLogin(false);
       setAdminPassword("");
       setAdminIdInput("");
       setAdminError(null);
       setStatus("관리자 인증 완료");
+      // 모달은 popstate에서 닫음 (setState를 먼저 하면 uiRef가 꼬여 다른 레이어를 닫을 수 있음)
+      window.history.back();
     } catch (e) {
       setAdminError(`관리자 인증 실패: ${String(e)}`);
     }
@@ -2346,7 +2448,7 @@ export default function Home() {
 
         {/* 내 신청내역 모달 */}
         {showMyModal && (
-          <div className="modalBackdrop" onClick={() => setShowMyModal(false)}>
+          <div className="modalBackdrop" onClick={closeMyModal}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <h3 className="modalTitle">내 신청내역</h3>
               <p className="modalSub">조회/수정/삭제 (식사: dinner)</p>
@@ -2410,7 +2512,7 @@ export default function Home() {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setShowMyModal(false)}
+                  onClick={closeMyModal}
                 >
                   닫기
                 </button>
@@ -2618,7 +2720,7 @@ export default function Home() {
           <div
             className="modalBackdrop"
             style={{ zIndex: 70 }}
-            onClick={() => setShowAdminLogin(false)}
+            onClick={closeAdminLoginModal}
           >
             <div
               className="modal"
@@ -2666,7 +2768,7 @@ export default function Home() {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setShowAdminLogin(false)}
+                  onClick={closeAdminLoginModal}
                 >
                   취소
                 </button>
