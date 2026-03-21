@@ -159,6 +159,15 @@ function escapeHtml(input: string): string {
     .replaceAll("'", "&#039;");
 }
 
+/** 신청 폼 이름: 한 글자만 / 숫자만 → 안내 문구 */
+function applicationNameFieldError(name: string): string | null {
+  const t = name.trim();
+  if (t.length === 0) return null;
+  if (t.length === 1) return "잘못 입력하셨습니다";
+  if (/^\d+$/.test(t)) return "잘못 입력하셨습니다";
+  return null;
+}
+
 export default function Home() {
   const [queryDate, setQueryDate] = useState<string>(todayKST());
   // 페이지를 켜둔 채로 날짜가 바뀌면(자정 통과) 메뉴 조회가 갱신되도록
@@ -289,9 +298,12 @@ export default function Home() {
     ? isEditAllowedForDate(myApp.date)
     : false;
 
+  const applyNameError = applicationNameFieldError(name);
+
   const canSubmitApplication =
     !submitting &&
     !!name.trim() &&
+    !applyNameError &&
     !!phone.trim() &&
     !!ranchNumber.trim() &&
     !!queryDate &&
@@ -666,6 +678,13 @@ export default function Home() {
   }
 
   async function submit() {
+    const nameErr = applicationNameFieldError(name);
+    if (nameErr) {
+      setSubmitStatus(nameErr);
+      setSubmitStatusTone("error");
+      return;
+    }
+
     setSubmitting(true);
     setSubmitStatus("");
     setSubmitStatusTone("");
@@ -1726,6 +1745,14 @@ export default function Home() {
           letter-spacing: -0.01em;
           color: #475569;
         }
+        .applyFieldError {
+          display: block;
+          margin-top: 6px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #b91c1c;
+          line-height: 1.35;
+        }
         .applyTotalRow {
           margin-top: 10px;
           display: flex;
@@ -1965,10 +1992,25 @@ export default function Home() {
                       이름 <span className="req">*</span>
                     </span>
                     <input
+                      type="text"
+                      autoComplete="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="이름"
+                      aria-invalid={applyNameError ? true : undefined}
+                      aria-describedby={
+                        applyNameError ? "apply-name-error" : undefined
+                      }
                     />
+                    {applyNameError ? (
+                      <span
+                        id="apply-name-error"
+                        className="applyFieldError"
+                        role="alert"
+                      >
+                        {applyNameError}
+                      </span>
+                    ) : null}
                   </label>
 
                   <label>
